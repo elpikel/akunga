@@ -38,3 +38,4 @@ npm-debug.log
 
 # Local task plans (/brainstorm, /implement).
 /.claude/work/
+/.claude/settings.local.json
