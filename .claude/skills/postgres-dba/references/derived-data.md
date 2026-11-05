@@ -1,8 +1,9 @@
 # Derived data: functional indexes and materialized views
 
-Examples come from the Ether codebase; adapt names to your repo.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
-Check the existing migrations for generated columns first (Ether has none). Derived data takes one of two forms.
+Check the existing migrations for generated columns first; prefer the forms
+already in use. Derived data takes one of two forms.
 
 ## Functional indexes (search, normalised lookup)
 
@@ -15,39 +16,41 @@ storing a copy:
 
 def up do
   execute("""
-  CREATE INDEX CONCURRENTLY IF NOT EXISTS sportsmonks_players_display_name_lower_unaccent_idx
-  ON sportsmonks_players (lower(immutable_unaccent(display_name)))
+  CREATE INDEX CONCURRENTLY IF NOT EXISTS products_name_lower_unaccent_idx
+  ON products (lower(immutable_unaccent(name)))
   """)
 end
 
 def down do
-  execute("DROP INDEX CONCURRENTLY IF EXISTS sportsmonks_players_display_name_lower_unaccent_idx")
+  execute("DROP INDEX CONCURRENTLY IF EXISTS products_name_lower_unaccent_idx")
 end
 ```
 
 The query must use the identical expression or the index is ignored:
 
 ```elixir
-Player
-|> from(as: :player)
-|> where([player: player], fragment("lower(immutable_unaccent(?))", player.display_name) == ^normalised_query)
+Product
+|> from(as: :product)
+|> where([product: product], fragment("lower(immutable_unaccent(?))", product.name) == ^normalised_query)
 ```
 
 ## Materialized views (heavy aggregate reads)
 
-Used for metric comparison (ADR-0007) and similar wide reads. Rules:
+Used for sales summaries, reports and similar wide reads. Rules:
 
 - Created and dropped with `execute/2` in `up`/`down`. Changing the definition
   means drop and recreate, in the same migration.
 - Needs a `UNIQUE INDEX` so `REFRESH MATERIALIZED VIEW CONCURRENTLY` works.
-- Refreshed by an Oban worker (e.g. `Workers.MetricComparisonRefresh`), never
-  per request.
+- Refreshed by a background job (an Oban worker, e.g.
+  `Shop.Workers.RefreshProductSalesSummaries`, or the repo's scheduler if
+  `.claude/project.md` lists no background jobs), never per request.
 - Read through an Ecto schema with `@primary_key false`. Select only the
-  columns you need: `metric_comparison` has ~300 columns.
+  columns you need: summary views tend to grow wide.
 - Profile the defining query with `EXPLAIN ANALYZE` before blaming the
-  refresh mechanism (ADR-0007: the cost was the query, not the refresh).
+  refresh mechanism: the cost is usually the query, not the refresh.
 
-See `templates/materialized_view_migration.exs`.
+See `templates/materialized_view_migration.exs` (`product_sales_summaries`,
+aggregated from `order_lines`).
 
 ## A stored generated column?
 

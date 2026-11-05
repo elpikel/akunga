@@ -16,7 +16,7 @@ writer lives in the schema (NOT NULL, unique indexes, FKs); business rules live
 in Elixir context modules. Repo facts (dev DB, test DB, table prefixes) live in
 `.claude/project.md`. Read a few of the repo's existing migrations before
 writing one: when they conflict with general Postgres advice, the repo wins.
-Examples in this skill come from the Ether codebase; adapt names to your repo.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
 ## 🎯 Why: design for change
 
@@ -33,28 +33,29 @@ index, never reshape the world.
 2. **Verify names before writing.** Read the Ecto schema in `lib/` for every
    table and column you touch. Never guess a table or column name.
 3. **Prefix by owner.** Use the table prefixes in `.claude/project.md`.
-   App-owned tables (users, devices, favourites) have no prefix unless
+   App-owned tables (`products`, `orders`, `customers`) have no prefix unless
    `.claude/project.md` says otherwise. **Never write to a prefix marked
    read-only** there: an external pipeline owns those tables.
 4. **Keys by table family** (`references/keys.md`):
    - App-owned tables: Ecto's default `id` (bigserial). Don't declare `serial`.
-   - Provider read models (externally fed prefixed tables, metric tables):
+   - Provider read models (externally fed prefixed tables such as `supplier_*`):
      `primary_key: false` plus a composite `unique_index` that is exactly the
      upsert `conflict_target`.
    - Pure junctions: `primary_key: false` plus a `unique_index` on the pair.
-5. **Foreign keys.** To app tables: `references(:users, on_delete: ...)`,
+5. **Foreign keys.** To app tables: `references(:customers, on_delete: ...)`,
    `null: false` unless the relation is genuinely optional, and `on_delete`
-   always explicit. To provider data: an integer `<source>_<entity>_external_id`
-   column (e.g. in Ether `sportsmonks_team_external_id`), indexed, usually without a
-   DB-level FK because provider rows arrive out of order.
+   always explicit. To provider data: a `<source>_<entity>_external_id`
+   column typed like the provider's id (e.g. `supplier_product_external_id`,
+   `:integer`), indexed, usually without a DB-level FK because provider rows
+   arrive out of order.
 6. **`null: false` by default** on every column you can't explain being empty.
 7. **Value sets are `Ecto.Enum`** over a `:string` column, never Postgres
    `CREATE TYPE`. Add a check constraint only when non-Ecto writers exist
    (`references/enums.md`).
 8. **Logic lives in contexts, not the database** (`references/constraints-and-logic.md`).
    No plpgsql. Check the existing migrations for DB functions; keep them to
-   SQL wrappers needed for functional indexes (Ether has only
-   `immutable_unaccent`). A new DB function needs an ADR.
+   SQL wrappers needed for functional indexes (typically an
+   `immutable_unaccent` wrapper). A new DB function needs an ADR.
 9. **`execute/2` only when the DSL can't express it**: materialized views,
    functional indexes, extensions, check constraints with SQL. Always give a
    matching `down`.
@@ -80,12 +81,12 @@ index, never reshape the world.
 | New app-owned table | 4, 5, 10 | `references/keys.md`, `templates/create_table_migration.exs` |
 | New provider read model (externally fed) | 4, 5 | `references/keys.md` |
 | Upsert from a worker | 4 | `references/keys.md` |
-| FK to users vs. to provider data | 5 | `references/keys.md` |
+| FK to customers vs. to provider data | 5 | `references/keys.md` |
 | Status / type / priority column | 7 | `references/enums.md` |
 | Validation that must hold for every writer | 8 | `references/constraints-and-logic.md` |
 | Business rule across rows/tables | 8 | `references/constraints-and-logic.md` |
 | Search on lower/unaccented text | 9 | `references/derived-data.md` |
-| Heavy aggregate read (comparison, leaderboards) | 9 | `references/derived-data.md`, `templates/materialized_view_migration.exs` |
+| Heavy aggregate read (sales summaries, reports) | 9 | `references/derived-data.md`, `templates/materialized_view_migration.exs` |
 | Provider payload or open-ended attributes | 12 | `references/jsonb.md`, `templates/jsonb_column_migration.exs` |
 | Index on an existing large table | 13 | `references/indexes.md`, `templates/concurrent_index_migration.exs` |
 
@@ -94,7 +95,9 @@ index, never reshape the world.
 - `templates/create_table_migration.exs`: app-owned table with FK, NOT NULLs,
   unique index, timestamps.
 - `templates/schema.ex`: matching Ecto schema with changeset and constraint
-  mapping.
+  mapping. `order_id` is left out of `cast` on purpose: the context sets it
+  (e.g. `Ecto.build_assoc/3`). The template has no comments because `lib/`
+  code carries none.
 - `templates/materialized_view_migration.exs`: `execute/2` up/down with the
   unique index `REFRESH ... CONCURRENTLY` needs.
 - `templates/jsonb_column_migration.exs`: `:map` column plus a hot field

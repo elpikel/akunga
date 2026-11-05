@@ -36,6 +36,7 @@ diff small.
    that is cheapest to change *now*.
 
 All examples follow the project conventions in `.claude/agents/builder.md`.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
 ## The principles
 
@@ -69,11 +70,11 @@ All examples follow the project conventions in `.claude/agents/builder.md`.
 | Controller builds Ecto queries, or a context reads `conn.params` | **Separation of Concerns** |
 | Another module joins on this context's schema directly | **Information Hiding** |
 | Callers fetch a struct then branch on its fields to decide policy | **Tell, Don't Ask** |
-| `player.current_team.league.season.id` chains | **Law of Demeter** |
+| `order.customer.membership.plan.discount_rate` chains | **Law of Demeter** |
 | `use SomeBase` macros injecting overridable functions | **Composition** |
 | A context calls an HTTP client module directly, untestable without the network | **Program to a Behaviour** |
 | `get_*` that inserts, or an upsert whose return value drives control flow | **CQS** |
-| `fetch_player/1` returning `nil`, or a non-`!` function that raises | **Least Astonishment** |
+| `fetch_product/1` returning `nil`, or a non-`!` function that raises | **Least Astonishment** |
 | A `nil` discovered three calls deep, far from the request | **Fail Fast** |
 
 ## Elixir-specific guidance
@@ -82,9 +83,10 @@ All examples follow the project conventions in `.claude/agents/builder.md`.
   root in `.claude/project.md`) is what other code
   calls. Schemas and query modules underneath are private by convention; no
   other context joins on them. Cross-context data goes through a function.
-- **Behaviours + Mox at external boundaries only.** Each external API (the
-  Mox mocks listed in `.claude/project.md`) has a `@callback` module whose
-  implementation is resolved via `Application.get_env/3`. Don't add behaviours
+- **Behaviours at external boundaries only.** Each external API has a
+  `@callback` module whose implementation is resolved via
+  `Application.get_env/3`; tests swap in a Mox mock if `.claude/project.md`
+  lists Mox, otherwise a test implementation of the behaviour. Don't add behaviours
   for the app's own modules — test those for real against the sandboxed DB.
 - **Connascence of position is the common smell.** Positional args beyond
   three become a map of named params; tuples bundling data become maps.
@@ -92,9 +94,10 @@ All examples follow the project conventions in `.claude/agents/builder.md`.
   and let unmatched shapes crash (Fail Fast for free).
 - **`with` for dependent steps** that can each fail; a pipe for steps that
   can't.
-- **Structs for domain values with invariants** (`@enforce_keys`, e.g.
-  `Ether.Accounts.Viewer` in the Ether codebase); plain maps for transient, request-shaped data.
+- **Structs for domain values with invariants** (`@enforce_keys`, e.g. a
+  `Shop.Accounts.Membership`); plain maps for transient, request-shaped data.
 - **A GenServer is a runtime decision, not a code-organisation tool.** Use one
   only for state that must live across calls or serialised access. Pure logic
-  belongs in plain modules; scheduled work belongs in Oban.
+  belongs in plain modules; scheduled work belongs in Oban (or the repo's
+  job runner, per *Background jobs* in `.claude/project.md`).
 - **DRY is about knowledge, not characters.** Rule of Three before extracting.

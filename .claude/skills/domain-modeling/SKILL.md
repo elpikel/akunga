@@ -18,7 +18,7 @@ Most repos have a single context:
 │   └── adr/
 │       ├── 0001-event-sourced-orders.md
 │       └── 0002-postgres-for-write-model.md
-└── src/
+└── lib/<app>/
 ```
 
 If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The map points to where each one lives:
@@ -28,7 +28,7 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 ├── CONTEXT-MAP.md
 ├── docs/
 │   └── adr/                          ← system-wide decisions
-├── src/
+├── lib/<app>/
 │   ├── ordering/
 │   │   ├── CONTEXT.md
 │   │   └── docs/adr/                 ← context-specific decisions
@@ -37,7 +37,7 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 │       └── docs/adr/
 ```
 
-Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
+`/init` creates `CONTEXT.md` and `docs/adr/`. If either is missing anyway, create it when you first have something to write.
 
 ## During the session
 
@@ -59,7 +59,7 @@ When the user states how something works, check whether the code agrees. If you 
 
 ### Update CONTEXT.md inline
 
-When a term is resolved, update `CONTEXT.md` right there. Don't batch these up — capture them as they happen. Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
+When a term is resolved, update `CONTEXT.md` right there. Don't batch these up — capture them as they happen. (Exception: `/brainstorm` writes nothing until the user approves the plan, so there terms wait for its Phase 2.) Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
 
 `CONTEXT.md` should be totally devoid of implementation details. Do not treat `CONTEXT.md` as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
 

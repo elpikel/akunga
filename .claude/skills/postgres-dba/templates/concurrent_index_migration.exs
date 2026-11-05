@@ -1,10 +1,10 @@
-defmodule MyApp.Repo.Migrations.AddRankTypeUpdatedOnIndexToGradientRankingsHistory do
+defmodule Shop.Repo.Migrations.AddStatusInsertedAtIndexToOrders do
   use Ecto.Migration
 
   @disable_ddl_transaction true
   @disable_migration_lock true
 
   def change do
-    create index(:dat_gradient_rankings_history, [:rank_type, :updated_on], concurrently: true)
+    create index(:orders, [:status, :inserted_at], concurrently: true)
   end
 end

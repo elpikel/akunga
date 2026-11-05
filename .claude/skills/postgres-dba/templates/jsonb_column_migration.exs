@@ -1,20 +1,21 @@
-defmodule MyApp.Repo.Migrations.AddPayloadToRotowireNews do
+defmodule Shop.Repo.Migrations.AddPayloadToSupplierProducts do
   use Ecto.Migration
 
   def change do
-    alter table(:rotowire_news) do
+    alter table(:supplier_products) do
       add :payload, :map, null: false, default: %{}
-      add :is_injury_related, :boolean, null: false, default: false
+      add :is_discontinued, :boolean, null: false, default: false
     end
 
-    create index(:rotowire_news, [:is_injury_related])
+    create index(:supplier_products, [:is_discontinued])
   end
 end
 
 # Schema fields:
 #
 #   field :payload, :map, default: %{}
-#   field :is_injury_related, :boolean, default: false
+#   field :is_discontinued, :boolean, default: false
 #
-# The worker that writes `payload` also sets `is_injury_related`, because
-# queries filter on it. Fields only displayed stay inside `payload`.
+# Shop.Workers.SyncSupplierProducts writes `payload` and also sets
+# `is_discontinued`, because queries filter on it. Fields only displayed stay
+# inside `payload`.

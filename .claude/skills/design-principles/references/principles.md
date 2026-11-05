@@ -1,8 +1,9 @@
 # Design Principles — Elixir Reference
 
 Each section: the rule → wrong → right → when it's over-engineering.
-Examples come from the Ether codebase; adapt names to your repo.
-Module names marked *(illustrative)* don't exist in Ether; the rest do.
+Examples use an illustrative `Shop` app (`Shop.Catalog`, `Shop.Orders`,
+`Shop.Accounts`, a Stripe integration and a supplier product feed); adapt
+names to your repo.
 Examples follow `.claude/agents/builder.md` conventions.
 
 ---
@@ -18,17 +19,18 @@ web → contexts → schemas, never back.
 **Wrong** — connascence of position and meaning across a context boundary:
 
 ```elixir
-Rankings.list("TOP_5", "2024/2025", ["FB"], 20, true)
+Catalog.list_products("headphones", 50, 200, 20, true)
 ```
 
-**Right** — named params in one map; the meaning of `true` becomes a Viewer:
+**Right** — named params in one map; the meaning of `true` ("show member
+prices") becomes the customer whose membership decides it:
 
 ```elixir
-Rankings.list(%{
-  competition_group: "TOP_5",
-  season_name: "2024/2025",
-  positions: ["FB"],
-  viewer: viewer
+Catalog.list_products(%{
+  category: "headphones",
+  min_price: 50,
+  max_price: 200,
+  customer: customer
 })
 ```
 
@@ -42,13 +44,13 @@ together; a private two-argument helper doesn't need a params map.
 **Rule.** A module groups functions that change for the same reason and are
 used together (single responsibility at module scale).
 
-**Wrong** — a grab-bag `Ether.Helpers.Misc` *(illustrative)* holding role
-lookups, date formatting and FPL price maths: three reasons to change, every
-caller depends on all of them.
+**Wrong** — a grab-bag `Shop.Helpers.Misc` holding price formatting, tax
+maths and supplier SKU parsing: three reasons to change, every caller depends
+on all of them.
 
-**Right** — each piece lives with its concept: role vocabulary in
-`Ether.Players.Roles`, position vocabulary in `Ether.Players.Positions`, FPL
-maths in the `Ether.Fpl` context.
+**Right** — each piece lives with its concept: price formatting in
+`Shop.Catalog.Pricing`, tax maths in `Shop.Orders.Tax`, SKU parsing in the
+`Shop.Supplier` context that owns the feed.
 
 **Over-engineering when** you split a 60-line module that only ever changes
 as a unit into four files.
@@ -60,28 +62,27 @@ as a unit into four files.
 **Rule.** Duplicate *knowledge* (a rule, a mapping, a vocabulary) is the
 problem; duplicate *characters* aren't.
 
-**Wrong** — two hand-maintained tables encoding the same role→position fact
-(as `Ether.Players.Roles` has with `@roles_by_group` and `@roles_by_bucket`):
+**Wrong** — two hand-maintained tables in `Shop.Catalog.Categories` encoding
+the same category→department fact:
 
 ```elixir
-@roles_by_group [{"Full Backs", ["Overlapping Full Back"]}]
-@roles_by_bucket [%{label: "Defenders", roles: ["Overlapping Full Back"]}]
+@categories_by_department [{"Audio", ["Headphones"]}]
+@categories_by_nav_section [%{label: "Electronics", categories: ["Headphones"]}]
 ```
 
-**Right** — derive the second view from the first (`Positions.bucket_groups/0`
-is *illustrative*; it doesn't exist yet):
+**Right** — derive the second view from the first:
 
 ```elixir
-def hierarchy(%{selected_roles: selected_roles, locked: locked}) do
-  Positions.bucket_groups()
-  |> Enum.map(&bucket_roles(&1, %{selected_roles: selected_roles, locked: locked}))
+def nav_tree(%{selected_categories: selected_categories, locked: locked}) do
+  Departments.nav_sections()
+  |> Enum.map(&section_categories(&1, %{selected_categories: selected_categories, locked: locked}))
 end
 ```
 
 **False DRY.** Two functions with identical bodies that encode *different*
-decisions (e.g. the free-filter list for Rankings vs. Skill Leaderboards,
-ADR-0036) stay separate. Merging them couples two product decisions. Rule of
-Three before extracting.
+decisions (e.g. the order total that earns free shipping vs. the one that
+earns a free gift) stay separate. Merging them couples two product decisions.
+Rule of Three before extracting.
 
 ---
 
@@ -89,11 +90,11 @@ Three before extracting.
 
 **Rule.** Build for today's requirement; keep the seam cheap to add later.
 
-**Wrong** — a `RoleProvider` behaviour with one static implementation, "in
-case roles come from DAT one day".
+**Wrong** — a `CategoryProvider` behaviour with one static implementation,
+"in case categories come from the supplier feed one day".
 
-**Right** — a plain module with a module attribute. If DAT ever supplies
-roles, the change is local to `Ether.Players.Roles`.
+**Right** — a plain module with a module attribute. If the supplier feed ever
+supplies categories, the change is local to `Shop.Catalog.Categories`.
 
 **Over-engineering signal:** a behaviour, config key, or option with exactly
 one implementation and no test that needs to swap it.
@@ -105,15 +106,15 @@ one implementation and no test that needs to swap it.
 **Rule.** The simplest design that works; complexity must pay rent.
 
 **Wrong** — a `__using__` macro generating filter functions per facet, so
-nobody can grep where `filter_by_nationality/2` is defined.
+nobody can grep where `filter_by_brand/2` is defined.
 
 **Right** — explicit functions, one per facet, pattern-matched on the param:
 
 ```elixir
-def filter_by_nationality(query, []), do: query
+def filter_by_brand(query, []), do: query
 
-def filter_by_nationality(query, nationalities) do
-  where(query, [profile: profile], profile.nationality in ^nationalities)
+def filter_by_brand(query, brands) do
+  where(query, [product: product], product.brand in ^brands)
 end
 ```
 
@@ -130,21 +131,21 @@ fetches, JSON view renders. Raw params stop at the controller.
 **Wrong** — a context reading request params and building the response:
 
 ```elixir
-def list(conn) do
-  conn.params["positions"]
+def list_products(conn) do
+  conn.params["category"]
   |> build_query()
   |> Repo.all()
   |> Enum.map(&%{"name" => &1.name})
 end
 ```
 
-**Right** — each layer owns one concern:
+**Right** — each layer owns one concern (`ShopWeb.ProductController`):
 
 ```elixir
-def list(conn, params) do
-  viewer = Viewer.from_identity(conn.assigns.identity_provider_id)
-  rankings = Rankings.list(%{positions: Map.get(params, "positions", []), viewer: viewer})
-  render(conn, :list, rankings: rankings)
+def index(conn, params) do
+  customer = conn.assigns.current_customer
+  products = Catalog.list_products(%{category: Map.get(params, "category"), customer: customer})
+  render(conn, :index, products: products)
 end
 ```
 
@@ -158,13 +159,13 @@ layering it will never need.
 **Rule.** Other contexts call functions, not join on your schemas. The
 representation (tables, joins, materialised views) can then change freely.
 
-**Wrong** — `Ether.SkillsLeaderboard` joining `dat_gradient_rankings` with
-its own query, duplicating how Rankings scopes seasons (ADR-0032).
+**Wrong** — `Shop.Orders` joining `supplier_products` with its own query to
+check stock, duplicating how `Shop.Supplier` maps supplier SKUs to products.
 
-**Right** — ask Rankings for what you need:
+**Right** — ask the owning context for what you need:
 
 ```elixir
-ranked_season_ids = Rankings.ranked_season_ids(%{league_ids: league_ids})
+in_stock_ids = Supplier.in_stock_product_ids(%{product_ids: product_ids})
 ```
 
 **Over-engineering when** you add an accessor for every field of a schema
@@ -177,16 +178,17 @@ only one context ever reads.
 **Rule.** Ask the owning module for the decision; don't pull its data out and
 decide for it.
 
-**Wrong** — callers interpret entitlements themselves:
+**Wrong** — callers interpret the membership themselves:
 
 ```elixir
-if Enum.any?(entitlements, &(&1.name == "gradient_fc_premium")), do: full_rows, else: trimmed_rows
+if membership.tier == :premium and DateTime.after?(membership.expires_at, now), do: member_price, else: list_price
 ```
 
-**Right** — the Viewer owns the interpretation (ADR-0033):
+**Right** — `Membership` owns the interpretation (the access rules live in
+`.claude/project.md`):
 
 ```elixir
-if Viewer.paid?(viewer), do: full_rows, else: trimmed_rows
+if Membership.premium?(membership), do: member_price, else: list_price
 ```
 
 **Over-engineering when** the "decision" is rendering — JSON views legitimately
@@ -202,13 +204,13 @@ associations across context boundaries.
 **Wrong:**
 
 ```elixir
-player.current_team.primary_league.current_season.external_id
+order.customer.membership.plan.discount_rate
 ```
 
 **Right** — one function answers the question:
 
 ```elixir
-Teams.current_season_external_id(%{team_id: player.current_team_id})
+Accounts.member_discount_rate(%{customer_id: order.customer_id})
 ```
 
 **Over-engineering when** the chain stays inside one context's own schemas
@@ -222,7 +224,7 @@ and is already preloaded for that purpose.
 functions in pipelines and by implementing behaviours. Avoid `use` macros
 that inject overridable functions — they recreate inheritance's coupling.
 
-**Wrong** — `use Ether.BaseFilter` *(illustrative)* injecting `apply/2` with
+**Wrong** — `use Shop.BaseFilter` injecting `apply/2` with
 `defoverridable`, so each filter's real behaviour is split across two files.
 
 **Right** — a pipeline of explicit filter steps:
@@ -230,9 +232,9 @@ that inject overridable functions — they recreate inheritance's coupling.
 ```elixir
 def filter(query, filters) do
   query
-  |> filter_by_positions(filters.positions)
-  |> filter_by_roles(filters.player_roles)
-  |> filter_by_nationality(filters.nationalities)
+  |> filter_by_category(filters.categories)
+  |> filter_by_price_range(filters.price_range)
+  |> filter_by_brand(filters.brands)
 end
 ```
 
@@ -244,23 +246,24 @@ end
 
 **Rule.** External systems sit behind a `@callback` contract. Callers depend
 on the contract module; the implementation is chosen by config, and tests
-swap in a Mox mock. This is dependency inversion: the context owns the
+swap in a Mox mock (or, without Mox, a test module implementing the
+behaviour). This is dependency inversion: the context owns the
 contract, the HTTP adapter depends on it.
 
-**Right** — Ether's existing shape (`Ether.Fpl.Client`):
+**Right** — the supplier feed client:
 
 ```elixir
-defmodule Ether.Fpl.Client do
-  @callback bootstrap_static() :: map()
+defmodule Shop.Supplier.Client do
+  @callback list_products() :: {:ok, [map()]} | {:error, term()}
 
-  def bootstrap_static, do: client().bootstrap_static()
+  def list_products, do: client().list_products()
 
-  defp client, do: Application.get_env(:ether, :fpl_client, Ether.Fpl.Client.Http)
+  defp client, do: Application.get_env(:shop, :supplier_client, Shop.Supplier.Client.Http)
 end
 ```
 
-**Wrong** — a worker calling `Req.get!/1` against the FPL API directly,
-untestable without the network.
+**Wrong** — `Shop.Workers.SyncSupplierProducts` calling `Req.get!/1` against
+the supplier API directly, untestable without the network.
 
 **Over-engineering when** you add a behaviour around the app's own contexts or
 the Repo. Test those for real against the sandboxed DB.
@@ -275,18 +278,19 @@ or `:ok`) or answers a question (returns data) — not both.
 **Wrong** — a getter that writes:
 
 ```elixir
-def get_device(device_id) do
-  Repo.get_by(Device, device_id: device_id) || Repo.insert!(%Device{device_id: device_id})
+def get_open_order(customer_id) do
+  Repo.get_by(Order, customer_id: customer_id, status: :open) ||
+    Repo.insert!(%Order{customer_id: customer_id, status: :open})
 end
 ```
 
 **Right** — name the command honestly:
 
 ```elixir
-def get_or_create_device(device_id) do
-  Device
-  |> Repo.get_by(device_id: device_id)
-  |> ensure_device(device_id)
+def get_or_create_open_order(customer_id) do
+  Order
+  |> Repo.get_by(customer_id: customer_id, status: :open)
+  |> ensure_open_order(customer_id)
 end
 ```
 
@@ -303,11 +307,11 @@ caller needs — return it, but name the function as a command.
 - `list_*` returns a list, never `nil`.
 - `*?` returns a boolean and has no side effects.
 
-**Wrong** — `fetch_player/1` returning `nil`, or `paid?/1` that writes a log
-row.
+**Wrong** — `fetch_product/1` returning `nil`, or `premium?/1` that writes an
+audit row.
 
-**Right** — `fetch_player/1` returns `{:error, :not_found}`; `paid?/1` is a
-pure read (as `Ether.Accounts.Viewer.paid?/1` is).
+**Right** — `fetch_product/1` returns `{:error, :not_found}`;
+`Shop.Accounts.Membership.premium?/1` is a pure read.
 
 **Over-engineering when** you rename a stable, widely used function purely
 for convention without other reason to touch it.
@@ -320,22 +324,22 @@ for convention without other reason to touch it.
 webhook payloads), return `{:error, _}` for expected failures, and let
 impossible states crash via pattern matching. Fail *closed* where safety
 matters: an access check that errors resolves to the most restricted access
-(see the access rules in `.claude/project.md`; in Ether, a paywall check that
-errors resolves unpaid, ADR-0033).
+(see the access rules in `.claude/project.md`; in `Shop`, a membership check
+that errors resolves to non-premium, so the customer sees list prices).
 
 **Wrong** — accepting anything and discovering `nil` three calls deep:
 
 ```elixir
-def list_rankings(params), do: build_query(params["season"])
+def list_products(params), do: build_query(params["category"])
 ```
 
 **Right** — match the accepted shape and chain dependent steps with `with`:
 
 ```elixir
-def list_rankings(%{season_name: season_name, league_ids: league_ids}) do
-  with {:ok, season} <- Seasons.fetch_by_name(season_name),
-       {:ok, leagues} <- Leagues.fetch_all(league_ids) do
-    {:ok, query_rankings(%{season: season, leagues: leagues})}
+def list_products(%{category_slug: category_slug, min_price: min_price, max_price: max_price}) do
+  with {:ok, category} <- Categories.fetch_by_slug(category_slug),
+       {:ok, price_range} <- Pricing.parse_range(min_price, max_price) do
+    {:ok, query_products(%{category: category, price_range: price_range})}
   end
 end
 ```

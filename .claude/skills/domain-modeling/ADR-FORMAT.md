@@ -2,11 +2,15 @@
 
 ADRs live in `docs/adr/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
 
-Create the `docs/adr/` directory lazily — only when the first ADR is needed.
+`/init` creates `docs/adr/`. If it's missing anyway, create it with the first ADR.
 
 ## Template
 
 ```md
+---
+status: accepted
+---
+
 # {Short title of the decision}
 
 {1-3 sentences: what's the context, what did we decide, and why.}
@@ -14,11 +18,14 @@ Create the `docs/adr/` directory lazily — only when the first ADR is needed.
 
 That's it. An ADR can be a single paragraph. The value is in recording *that* a decision was made and *why* — not in filling out sections.
 
+## Status (always present)
+
+The `status` frontmatter is one of `proposed | accepted | deprecated | superseded by ADR-NNNN`. `/brainstorm` writes ADRs `accepted`: the user agreed the decision before the plan was written. `/implement` writes `proposed` for a decision made while building; it becomes `accepted` when the user accepts the implementation. An existing ADR is never edited to change its decision; a new ADR supersedes it, and the old one gets `superseded by ADR-NNNN`.
+
 ## Optional sections
 
 Only include these when they add genuine value. Most ADRs won't need them.
 
-- **Status** frontmatter (`proposed | accepted | deprecated | superseded by ADR-NNNN`) — useful when decisions are revisited
 - **Considered Options** — only when the rejected alternatives are worth remembering
 - **Consequences** — only when non-obvious downstream effects need to be called out
 

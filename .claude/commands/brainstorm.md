@@ -1,7 +1,7 @@
 ---
-description: Talk a pasted issue or an idea through, then write the implementation plan and its docs — stories and acceptance criteria, ADR and API doc when needed — for you to review before /implement.
+description: Talk a pasted issue or an idea through, then write the implementation plan and its docs — stories and acceptance criteria, ADR and API change doc when needed — for you to review before /implement.
 argument-hint: <pasted issue description, or the idea in your words>
-model: claude-opus-5-5
+model: opus
 ---
 
 # brainstorm
@@ -24,10 +24,10 @@ If it's missing, stop: `Run /init first.`
    they give only an issue id and the tracker's tools are connected, read the
    issue and its comments; otherwise ask them to paste it. With local tasks,
    the user's words are the input.
-2. Read `.claude/project.md`, `CONTEXT.md`, `docs/architecture.md`,
+2. Read `.claude/project.md`, `CONTEXT.md`, `ARCHITECTURE.md`,
    `docs/MEMORY.md`, the ADRs and API docs that touch the area, and the code
-   it touches: router scope, controller, context modules, queries, API spec
-   schemas, existing tests. Use subagents for broad sweeps.
+   it touches: router scope, controller or LiveView, context modules, queries,
+   API spec schemas (if any), existing tests. Use subagents for broad sweeps.
 3. Restate the task in a few lines, in `CONTEXT.md` terms, with what the code
    does today. Point out conflicts with existing behaviour, ADRs or the access
    rules in `.claude/project.md`, and anything in the task that's ambiguous.
@@ -39,23 +39,28 @@ If it's missing, stop: `Run /init first.`
    important is open, show it and ask once: "Write the plan?" Write nothing
    until the user says yes.
 
+Commit messages in `plan.md` follow the `git` skill (Conventional Commits).
+
 Useful skills: `design-principles` for module
 boundaries, `postgres-dba` for schema changes, `domain-modeling` for ADRs and terms.
+Phase 1 writes nothing, even where `domain-modeling` says to update
+`CONTEXT.md` right away: keep resolved terms in the agreed list and write them
+in Phase 2.
 
 ## Phase 2: write the plan
 
 The working docs go in `.claude/work/<slug>/` (gitignored, local only).
 `<slug>` follows the slug rule in `.claude/project.md`: the issue id plus a
-short name (e.g. `abc-630-role-positions`), or just the short name when tasks
-are local (e.g. `user-signup`). Omit `(<issue id>)` from the headings below
+short name (e.g. `abc-123-member-prices`), or just the short name when tasks
+are local (e.g. `member-prices`). Omit `(<issue id>)` from the headings below
 when there is none.
 
 | Doc | Where | When |
 |---|---|---|
 | `plan.md` | `.claude/work/<slug>/` | Always. |
 | `stories.md` | `.claude/work/<slug>/` | Always: acceptance criteria. User stories only when there's a user-facing change worth framing. |
-| ADR | `docs/adr/NNNN-<slug>.md`, next free number | Only for a decision that's hard to reverse, surprising, or a real trade-off. Via `domain-modeling`. |
-| API doc | the API docs directory in `.claude/project.md`, `<slug>.md` | Only if params or responses change. A draft of the contract, in the style of the existing API docs. `/implement` checks it against the code. |
+| ADR | `docs/adr/NNNN-<slug>.md`, next free number | Only for a decision that's hard to reverse, surprising without context **and** the result of a real trade-off. Via `domain-modeling`, with `status: accepted` (the user agreed it before "Write the plan?"). If it supersedes an older ADR, mark the old one `superseded by ADR-NNNN` now. |
+| API change doc | `.claude/work/<slug>/api-changes.md` | Only if the repo serves an API (see `.claude/project.md`) and params, responses, routes or access rules change. A draft of the contract for API clients: what changes, before → after. Local, never committed. `/implement` checks it against the code. |
 | Terms | `CONTEXT.md` | Only new or sharpened domain terms. |
 
 ### stories.md
@@ -82,7 +87,7 @@ per `Then`. Never invent criteria the conversation didn't agree.
 ```markdown
 # Plan: <feature> (<issue id>)
 Status: planned
-API doc: <path>   (or: none)
+API changes: .claude/work/<slug>/api-changes.md   (or: none)
 ADR: docs/adr/NNNN-<slug>.md  (or: none)
 
 ## Approach
@@ -99,9 +104,11 @@ ADR: docs/adr/NNNN-<slug>.md  (or: none)
 - Each task names its criteria, the files it owns (code and tests) and its
   commit message.
 - **Wire tasks are required.** Each entry point touched (a route in the
-  router, an Oban worker) gets a `wire:` task whose acceptance is a request
-  through the router in the endpoint test case, or `Worker.perform/1`.
-- If params or responses change, a task updates the API spec schemas.
+  router, a LiveView, a background worker) gets a `wire:` task whose
+  acceptance is a request through the router in the endpoint test case, the
+  LiveView via `live/2`, or `Worker.perform/1`.
+- If params or responses change and `.claude/project.md` lists an API spec, a
+  task updates the API spec schemas.
 
 Re-running on an existing slug refines the docs in place and sets
 `Status: planned`.
