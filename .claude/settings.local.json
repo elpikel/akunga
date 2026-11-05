@@ -1,0 +1,68 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mix test:*)",
+      "Bash(mix run:*)",
+      "Bash(mix format:*)",
+      "Bash(mix compile:*)",
+      "Bash(mix ecto.gen.migration:*)",
+      "Bash(MIX_ENV=test mix test:*)",
+      "Bash(MIX_ENV=test mix ecto.rollback:*)",
+      "Bash(MIX_ENV=test mix ecto.migrate:*)",
+      "Bash(MIX_ENV=test mix ecto.drop:*)",
+      "Bash(MIX_ENV=test mix ecto.create:*)",
+      "Bash(mix ecto.migrate:*)",
+      "Bash(mix ecto.rollback:*)",
+      "Bash(MIX_ENV=test mix ecto.reset:*)",
+      "Bash(grep:*)",
+      "Bash(for:*)",
+      "Bash(do mix test:*)",
+      "Bash(done)",
+      "Bash(MIX_ENV=test mix run:*)",
+      "Bash(MIX_ENV=test psql:*)",
+      "Bash(psql:*)",
+      "Bash(xargs cat:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(perl:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs:*)",
+      "Bash(git stash:*)",
+      "Bash(git show:*)",
+      "Bash(mix ecto.migrations:*)",
+      "Bash(chmod:*)",
+      "Bash(git branch:*)",
+      "Bash(git reset:*)",
+      "Bash(MIX_ENV=test mix ecto.migrations:*)",
+      "Bash(git config:*)",
+      "Bash(mix deps.get:*)",
+      "Bash(ls:*)",
+      "Bash(mix clean:*)",
+      "Bash(git fetch:*)",
+      "Bash(git log:*)",
+      "Bash(do echo \"Run $i:\")",
+      "Bash(git pull:*)",
+      "Bash(git status:*)",
+      "Bash(elixir -e:*)",
+      "Bash(curl:*)",
+      "Bash(git revert *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mix format"
+          },
+          {
+            "type": "command",
+            "command": "mix test --failed-only 2>&1 | head -50 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

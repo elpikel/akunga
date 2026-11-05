@@ -35,3 +35,6 @@ akunga-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Local task plans (/brainstorm, /implement).
+/.claude/work/
