@@ -1,41 +1,43 @@
 # Value sets: `Ecto.Enum`
 
-Examples come from the Ether codebase; adapt names to your repo.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
-Don't add Postgres enum types (Ether has none). Small, code-driven value sets (provider,
-type, priority, status) are `Ecto.Enum` over a `:string` column.
+Don't add Postgres enum types (check the existing migrations; if some exist,
+don't add more). Small, code-driven value sets (provider, type, priority,
+status) are `Ecto.Enum` over a `:string` column.
 
 ## Migration
 
 ```elixir
-alter table(:social_media_accounts) do
-  add :priority, :string, null: false, default: "medium"
+alter table(:orders) do
+  add :status, :string, null: false, default: "pending"
 end
 ```
 
 ## Schema
 
 ```elixir
-@priorities [:high, :medium, :low]
+@statuses [:pending, :paid, :shipped, :cancelled]
 
-schema "social_media_accounts" do
-  field :priority, Ecto.Enum, values: @priorities, default: :medium
+schema "orders" do
+  field :status, Ecto.Enum, values: @statuses, default: :pending
 end
 
-def priorities, do: @priorities
+def statuses, do: @statuses
 ```
 
-Callers use the module function (`Account.priorities()`), never the literal
+Callers use the module function (`Order.statuses()`), never the literal
 strings.
 
 ## When to add a check constraint
 
 Only when something other than Ecto writes the column (SQL backfills, an
-external pipeline). Ether, for example, has one, on `social_media_accounts.priority`:
+external pipeline). For example, if a reporting job backfills `orders.status`
+with raw SQL:
 
 ```elixir
-create constraint(:social_media_accounts, :social_media_accounts_priority_check,
-         check: "priority IN ('high', 'medium', 'low')"
+create constraint(:orders, :orders_status_check,
+         check: "status IN ('pending', 'paid', 'shipped', 'cancelled')"
        )
 ```
 
@@ -51,8 +53,8 @@ changeset error, not an exception.
 ## Lookup table instead?
 
 Only when the set carries extra columns, is edited without a deploy, or churns
-often. The static role and position vocabularies stay in code
-(`Ether.Players.Roles`, `Ether.Players.Positions`), not tables.
+often. Static vocabularies (order statuses, membership tiers) stay in code
+(e.g. the `@statuses` list on `Shop.Orders.Order`), not tables.
 
 ## Don't
 

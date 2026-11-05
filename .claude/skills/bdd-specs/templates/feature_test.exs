@@ -1,39 +1,56 @@
-defmodule MyAppWeb.Controllers.<Controller>.<Action>Test do
-  use MyAppWeb.ConnCase, async: true
+# Template for an endpoint spec. Swap Shop/ShopWeb, the test case, the route
+# and the data setup for what .claude/project.md lists. Without a factory,
+# replace insert/2 with the project's fixtures, e.g.
+# ShopFixtures.product_fixture(%{member_price: Decimal.new("15.00")}).
+defmodule ShopWeb.Controllers.ProductController.IndexTest do
+  use ShopWeb.ConnCase, async: true
 
-  test "<happy path behaviour, in plain words>", %{conn: conn} do
-    league = insert(:league)
-    season = insert(:season, league: league)
-
-    response =
-      conn
-      |> get("/api/v3/<route>?season_id=#{season.external_id}")
-      |> json_response(200)
-
-    assert %{"data" => [_ | _]} = response
-  end
-
-  test "<second happy path behaviour>", %{conn: conn} do
-    player = build_ranked_player()
+  test "a premium member sees the member price", %{conn: conn} do
+    customer = build_premium_customer()
+    product = insert(:product, price: Decimal.new("20.00"), member_price: Decimal.new("15.00"))
 
     response =
       conn
-      |> get("/api/v3/<route>")
+      |> log_in_customer(customer)
+      |> get(~p"/api/products")
       |> json_response(200)
 
-    assert [%{"id" => player_id}] = response["data"]
-    assert player_id == player.external_id
+    assert [%{"id" => id, "price" => "20.00", "member_price" => "15.00"}] = response["data"]
+    assert id == product.id
   end
 
-  test "<sad path behaviour, e.g. an unknown season returns not found>", %{conn: conn} do
-    conn = get(conn, "/api/v3/<route>?season_id=#{System.unique_integer([:positive])}")
+  test "a non-premium customer sees the regular price only", %{conn: conn} do
+    customer = insert(:customer)
+    insert(:product, price: Decimal.new("20.00"), member_price: Decimal.new("15.00"))
 
-    assert json_response(conn, 404)
+    response =
+      conn
+      |> log_in_customer(customer)
+      |> get(~p"/api/products")
+      |> json_response(200)
+
+    assert [product_json] = response["data"]
+    assert %{"price" => "20.00"} = product_json
+    refute Map.has_key?(product_json, "member_price")
   end
 
-  defp build_ranked_player do
-    player = insert(:player)
-    insert(:gradient_ranking, player: player)
-    player
+  test "a member_price param sent by a non-premium customer is ignored", %{conn: conn} do
+    customer = insert(:customer)
+    insert(:product, price: Decimal.new("20.00"), member_price: Decimal.new("15.00"))
+
+    response =
+      conn
+      |> log_in_customer(customer)
+      |> get(~p"/api/products?member_price=true")
+      |> json_response(200)
+
+    assert [product_json] = response["data"]
+    refute Map.has_key?(product_json, "member_price")
+  end
+
+  defp build_premium_customer do
+    customer = insert(:customer)
+    insert(:membership, customer: customer, tier: :premium)
+    customer
   end
 end

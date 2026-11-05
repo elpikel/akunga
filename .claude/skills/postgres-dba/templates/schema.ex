@@ -1,28 +1,33 @@
-defmodule MyApp.Favourites.FavouritePlayer do
+defmodule Shop.Orders.OrderLine do
   @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset
 
-  alias MyApp.Users.User
+  alias Shop.Catalog.Product
+  alias Shop.Orders.Order
 
-  @notification_levels [:all, :goals_only, :none]
+  @fulfilment_statuses [:pending, :shipped, :cancelled]
 
-  schema "favourite_players" do
-    belongs_to :user, User
-    field :sportsmonks_player_external_id, :integer
-    field :notification_level, Ecto.Enum, values: @notification_levels, default: :all
+  schema "order_lines" do
+    belongs_to :order, Order
+    belongs_to :product, Product
+    field :quantity, :integer
+    field :unit_price, :decimal
+    field :fulfilment_status, Ecto.Enum, values: @fulfilment_statuses, default: :pending
 
     timestamps(type: :utc_datetime)
   end
 
-  def notification_levels, do: @notification_levels
+  def fulfilment_statuses, do: @fulfilment_statuses
 
-  def changeset(%__MODULE__{} = favourite_player, attrs) do
-    favourite_player
-    |> cast(attrs, [:user_id, :sportsmonks_player_external_id, :notification_level])
-    |> validate_required([:user_id, :sportsmonks_player_external_id])
-    |> foreign_key_constraint(:user_id)
-    |> unique_constraint([:user_id, :sportsmonks_player_external_id])
+  def changeset(%__MODULE__{} = order_line, attrs) do
+    order_line
+    |> cast(attrs, [:product_id, :quantity, :unit_price, :fulfilment_status])
+    |> validate_required([:order_id, :product_id, :quantity, :unit_price])
+    |> validate_number(:quantity, greater_than: 0)
+    |> foreign_key_constraint(:order_id)
+    |> foreign_key_constraint(:product_id)
+    |> unique_constraint([:order_id, :product_id])
   end
 end

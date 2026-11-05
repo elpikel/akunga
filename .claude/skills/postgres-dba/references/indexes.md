@@ -1,13 +1,14 @@
 # Indexes
 
-Examples come from the Ether codebase; adapt names to your repo.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
 ## What to index
 
 - Every upsert `conflict_target`: a `unique_index`, exactly matching.
-- Every `*_external_id` and `user_id` column used in joins or filters.
+- Every `*_external_id` and `*_id` FK column (`customer_id`, `product_id`) used
+  in joins or filters.
 - Composite indexes in the order queries filter: equality columns first, then
-  range or sort columns (`[:rank_type, :updated_on]`).
+  range or sort columns (`[:status, :inserted_at]`).
 - Expressions the query uses verbatim (see `derived-data.md`).
 
 Check with `EXPLAIN ANALYZE` against realistic data before adding one; an
@@ -27,7 +28,7 @@ Build concurrently so writes aren't blocked:
 @disable_migration_lock true
 
 def change do
-  create index(:dat_gradient_rankings_history, [:rank_type, :updated_on], concurrently: true)
+  create index(:orders, [:status, :inserted_at], concurrently: true)
 end
 ```
 
@@ -38,4 +39,4 @@ transaction. Put it in its own migration.
 
 Let Ecto name DSL indexes (`<table>_<columns>_index`). For `execute/2` indexes,
 use `<table>_<columns>_<purpose>_idx`, e.g.
-`sportsmonks_players_display_name_lower_unaccent_idx`.
+`products_name_lower_unaccent_idx`.

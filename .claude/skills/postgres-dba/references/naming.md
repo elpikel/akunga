@@ -1,35 +1,31 @@
 # Naming
 
-Examples come from the Ether codebase; adapt names to your repo.
+Examples use an illustrative `Shop` app; adapt names to your repo.
 
 Lowercase `snake_case`, unquoted, everywhere. If an identifier ever needs
 double quotes, it's wrong.
 
 ## Tables
 
-- Plural: `entitlements`, `favourite_players`.
+- Plural: `orders`, `order_lines`.
 - Prefixed by owner when the data comes from a source. The repo's prefixes
-  are in `.claude/project.md`; Ether's, as an example:
+  (and which of them are read-only) are in `.claude/project.md`; the `Shop`
+  app's, as an example:
 
 | Prefix | Owner |
 |---|---|
-| `sportsmonks_*` | `Workers.Sportsmonks` |
-| `dbt_*` | external dbt pipeline (read-only for the app) |
-| `dat_*` | app workers, from `dbt_*` after ID mapping |
-| `idmap_*` | `Workers.Idmap` |
-| `rotowire_*` | `Workers.Rotowire*` |
-| `fpl_*` | `Workers.Fpl*` |
-| `social_media_*` | `Workers.SocialMedia.*` |
+| `stripe_*` | Stripe webhook handler and sync workers (`stripe_charges`, `stripe_customers`) |
+| `supplier_*` | `Shop.Workers.SyncSupplierProducts`, nightly feed via `Shop.Supplier.Client` |
 
-- App-owned tables (users, entitlements, devices, favourites) have no prefix.
+- App-owned tables (`products`, `orders`, `order_lines`, `customers`) have no prefix.
 
 ## Columns
 
-- Singular, descriptive, full words: `percentile_rank_desc_p90`, not `pr_d90`.
+- Singular, descriptive, full words: `quantity_available`, not `qty_avl`.
 - External references: `<source>_<entity>_external_id`
-  (`sportsmonks_team_external_id`); app FKs: `<table_singular>_id` (`user_id`).
-- Timestamps end in `_at` (`expires_at`); dates end in `_on` (`updated_on`).
-- Booleans read as predicates: `has_media`, `is_confirmed`.
+  (`supplier_product_external_id`); app FKs: `<table_singular>_id` (`customer_id`).
+- Timestamps end in `_at` (`paid_at`); dates end in `_on` (`shipped_on`).
+- Booleans read as predicates: `is_refunded`, `has_variants`.
 
 ## Schemas match columns
 
@@ -45,7 +41,7 @@ migration, read the schema to get the real table and column names.
 
 ## Domain terms
 
-Use the domain vocabulary (`CONTEXT.md`) in new names, e.g. in Ether `fixture` over `match`,
-`sidelined` over `injured`, `gradient_rankings` over `global_rankings`.
-Existing names (e.g. `games`, `global_rankings`) stay until a deliberate
+Use the domain vocabulary (`CONTEXT.md`) in new names, e.g. `customer` over
+`user` or `client`, `order_line` over `order_item`.
+Existing names that predate the vocabulary stay until a deliberate
 migration renames them.

@@ -1,29 +1,27 @@
-defmodule MyApp.Repo.Migrations.CreateTeamSeasonMetricTotals do
+defmodule Shop.Repo.Migrations.CreateProductSalesSummaries do
   use Ecto.Migration
 
   def up do
     execute("""
-    CREATE MATERIALIZED VIEW team_season_metric_totals AS
+    CREATE MATERIALIZED VIEW product_sales_summaries AS
     SELECT
-      metric.sportsmonks_season_external_id,
-      metric.sportsmonks_team_external_id,
-      metric.metric_name,
-      sum(metric.metric_value) AS metric_total
-    FROM dat_teams_weekly_metrics AS metric
-    GROUP BY
-      metric.sportsmonks_season_external_id,
-      metric.sportsmonks_team_external_id,
-      metric.metric_name
+      order_line.product_id,
+      sum(order_line.quantity) AS units_sold,
+      sum(order_line.quantity * order_line.unit_price) AS revenue
+    FROM order_lines AS order_line
+    JOIN orders AS ord ON ord.id = order_line.order_id
+    WHERE ord.status IN ('paid', 'shipped')
+    GROUP BY order_line.product_id
     """)
 
     # REFRESH ... CONCURRENTLY requires a unique index on the view.
     execute("""
-    CREATE UNIQUE INDEX team_season_metric_totals_unique_idx
-    ON team_season_metric_totals (sportsmonks_season_external_id, sportsmonks_team_external_id, metric_name)
+    CREATE UNIQUE INDEX product_sales_summaries_unique_idx
+    ON product_sales_summaries (product_id)
     """)
   end
 
   def down do
-    execute("DROP MATERIALIZED VIEW IF EXISTS team_season_metric_totals")
+    execute("DROP MATERIALIZED VIEW IF EXISTS product_sales_summaries")
   end
 end
