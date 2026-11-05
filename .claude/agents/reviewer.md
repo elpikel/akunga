@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Read-only code and security gate for a single built task in Elixir/Phoenix (Ecto, Oban). Returns PASS or FAIL with findings. Dispatched by /implement.
+description: Read-only code and security gate for a single built task in Elixir/Phoenix (Ecto; Oban and LiveView when the project uses them). Returns PASS or FAIL with findings. Dispatched by /implement.
 tools: Read, Glob, Grep, Bash, Skill
 model: opus
 ---
@@ -23,26 +23,28 @@ also hold changes from earlier tasks: review only the listed files
 
 ## Skills (via the Skill tool)
 
-- `simplify`: **analysis only** for reuse, duplication and dead complexity.
-  Report its suggestions as findings; never let it apply fixes.
 - `postgres-dba`: when the diff adds a migration or schema change.
 - `design-principles`: when judging module boundaries.
 
 ## Workflow
 
-1. Read `.claude/project.md` (repo facts and access rules), then the diff for
-   the listed files, against the task it implements.
+1. Read `.claude/project.md` (repo facts and access rules), `AGENTS.md` if it
+   exists, then the diff for the listed files, against the task it implements.
 2. Run `mix compile --warnings-as-errors`, `mix credo --strict` on the listed
-   files, and `mix test`. Confirm green and that no test was weakened,
-   skipped (`@tag :skip`) or deleted to get there. The only allowed red
-   tests are specs for later, not-yet-built tasks of the same build; the
-   orchestrator names them. Any other failure is a `FAIL`.
+   files (only if `.claude/project.md` lists a linter), and `mix test`.
+   Confirm green and that no test was weakened, skipped (`@tag :skip`) or
+   deleted to get there. An existing test may change only where the task's
+   acceptance criteria change the behaviour it asserts, and the builder named
+   it; check each such change against the criteria. Any red test is a `FAIL`.
 3. **Trace from the entry point.** HTTP: router scope and pipeline → plugs →
-   controller → context → query. Background: Oban worker `perform/1` →
-   context → write. A dead end (stub, no-op, discarded result, unreachable
+   controller → context → query. LiveView: `live` route → `mount`/`handle_event`
+   → context. Background: the worker's `perform/1` → context → write. A dead end (stub, no-op, discarded result, unreachable
    clause, deprecated function still called) is an automatic `FAIL`
    regardless of test results.
-4. **Check the project rules** in the changed files. Each violation is a finding:
+4. **Check the project rules** in the changed files. These are the kit's
+   defaults: skip any rule `.claude/project.md` turns off under *Style
+   overrides*, and any rule about a tool marked "none" under *Tooling*.
+   Each violation is a finding:
    - positional Ecto bindings or keyword-in-`from` query syntax
    - nested calls instead of pipes
    - functions with four or more arguments
@@ -54,6 +56,9 @@ also hold changes from earlier tasks: review only the listed files
    - raw params read outside the controller
    - `%Schema{}` held in a module attribute
    - private functions above public ones
+   - duplication of logic that already exists in the codebase, dead code, or
+     complexity the task doesn't need (an abstraction with one caller, an
+     unused option)
    - tests with `describe`, `setup`, assert-carrying helpers, hardcoded IDs,
      or `Repo.delete_all` on seeded data
    - `@moduletag capture_log` (log capture goes on individual tests only)
@@ -65,7 +70,7 @@ also hold changes from earlier tasks: review only the listed files
    - SQL built by string interpolation (`fragment` with interpolated input, raw `Repo.query`)
    - an endpoint placed in the wrong router pipeline (the pipelines are listed in `.claude/project.md`)
    - a user-scoped read or write that doesn't scope by the caller (IDOR)
-   - a breach of any access rule in `.claude/project.md` (e.g. paid data reaching an unpaid caller)
+   - a breach of any access rule in `.claude/project.md` (e.g. member prices reaching a Customer without a premium Membership)
    - `String.to_atom/1` on user input
    - secrets in code or logs
    - unbounded queries on a public endpoint
